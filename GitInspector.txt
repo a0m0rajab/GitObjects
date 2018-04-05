@@ -1,19 +1,22 @@
 //we need Git class
-Menu.chooser();
-//we need Git class
 class mae.sss.Chooser
 //select Git class
 Chooser.loadClass();
-//new instance
+//new Git instance
+//in the current directory
 G = new Git();
-//displayAllCommits
-ca = G.getAllCommits();
-//find the HEAD pointer
-h = G.head();
-//find the last commit
-c = G.getCommit(h);
-//display its tree
+//display All Branches in G
+G.getAllBranches();
+//find the HEAD branch in G
+h = G.getHEAD();
+//display All Commits in h
+h.getAllCommits();
+//find the last commit in h
+c = h.getLatestCommit();
+//load the tree of c
 t = c.getTree();
-//display its tree
-A = Menu.toTree(t);
+//get its first child
+b = t.getChildAt(0);
+//display the tree
+Menu.toTree(t);
 
