@@ -142,7 +142,7 @@ class Git {
            return c;
        }
        public int getIndex(TreeNode node) { return -1; }
-       public java.util.Enumeration children() { return null; }
+       public Enumeration<Entry> children() { return null; }
        public abstract void verify();
        public abstract void saveTo(File dir);
     }
@@ -258,8 +258,7 @@ class Git {
            return toSHA(ab);
     }
     public static void saveToFile(byte[] b, File f) {
-        try {
-            OutputStream out = new FileOutputStream(f);
+        try (OutputStream out = new FileOutputStream(f)) {
             out.write(b); out.close();
         } catch (IOException x) {
             throw new RuntimeException(x);
