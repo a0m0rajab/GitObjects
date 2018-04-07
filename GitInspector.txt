@@ -8,7 +8,7 @@ G = new Git();
 //display All Branches in G
 G.getAllBranches();
 //find the HEAD branch in G
-h = G.getHEAD();
+h = G.currentHEAD();
 //display All Commits in h
 h.getAllCommits();
 //find the last commit in h

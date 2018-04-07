@@ -1,12 +1,23 @@
 import java.io.*;
-import java.util.Arrays;
+import java.util.*;
 import java.security.MessageDigest;
 
 class Exec {
 
     final File root; //git repository
     final ProcessBuilder PB;
-    final MessageDigest MD; 
+    final Set<String> cMap = new HashSet<>();
+    final Set<String> bMap = new HashSet<>();
+    
+    final static int M = 7; 
+    final static MessageDigest MD; 
+    static {  
+        try { 
+            MD = MessageDigest.getInstance("SHA-1");         
+        } catch (java.security.NoSuchAlgorithmException x) {
+            throw new RuntimeException(x);
+        }
+    }
 
     public Exec() { this(new File(".")); }
     public Exec(File f) {
@@ -15,11 +26,23 @@ class Exec {
         if (!obj.isDirectory()) 
             throw new RuntimeException(root+": not a Git repository");
         PB = new ProcessBuilder(); PB.directory(root);
-        try { 
-            MD = MessageDigest.getInstance("SHA-1");         
-        } catch (java.security.NoSuchAlgorithmException x) {
-            throw new RuntimeException(x);
+        readObjects();
+    }
+    void readObjects() {   
+        String[] BATCH = 
+         {"git", "cat-file", "--batch-check", "--batch-all-objects"};
+        int n = 0, t = 0;
+        for (String s : new String(exec(BATCH)).split("\n")) {
+            String[] a = s.split(" ");
+            String h = a[0].trim();
+            if (a[1].equals("commit")) cMap.add(h);
+            if (a[1].equals("blob")) bMap.add(h);
+            if (a[1].equals("tree")) t++;
+            n++;
         }
+        System.out.print(n+" objects  "+cMap.size()+" commits  ");
+        System.out.println(t+" trees  "+bMap.size()+" blobs");
+        System.out.println(cMap.size()+bMap.size()+t);
     }
     public void printData(String h) {
         for (byte b : getData(h)) System.out.print((char)b);
@@ -75,6 +98,9 @@ class Exec {
         saveToFile(b, new File(name));
     }
     
+    static String trim(String h) { 
+        return (h!=null && h.length()>M? h.substring(0, M) : h); 
+    }
     static void saveToFile(byte[] b, File f) throws IOException {
         OutputStream out = new FileOutputStream(f);
         out.write(b); out.close();
@@ -99,8 +125,6 @@ class Exec {
     }
     public static void main(String[] args) throws IOException {
         Exec G = new Exec();
-        for (File f : G.root.listFiles()) 
-            if (f.isFile()) G.toSHA(f);
-        G.execute("dir"); //sample shell command
+        //G.execute("dir"); //sample shell command
     }
 }
