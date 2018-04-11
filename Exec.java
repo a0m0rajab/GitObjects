@@ -5,105 +5,158 @@ import java.security.MessageDigest;
 class Exec {
 
     final File root; //git repository
-    final ProcessBuilder PB;
-    final Set<String> cMap = new HashSet<>();
-    final Set<String> bMap = new HashSet<>();
+    final ProcessBuilder PB = new ProcessBuilder();
+    final byte[] buf = new byte[MB];
     
-    final static int M = 7; 
-    final static MessageDigest MD; 
-    static {  
-        try { 
-            MD = MessageDigest.getInstance("SHA-1");         
+    final static int LARGE = 2000; //limit for printing data
+    final static int MB = 5*1024*1024;  //5 MBytes
+    final static MessageDigest MD;  //SHA encoder
+    static {
+        try {
+            MD = MessageDigest.getInstance("SHA-1");          
         } catch (java.security.NoSuchAlgorithmException x) {
             throw new RuntimeException(x);
         }
-    }
-
+    } 
     public Exec() { this(new File(".")); }
     public Exec(File f) {
-        root = f.isDirectory()? f.getAbsoluteFile(): f.getParentFile();
-        File obj = new File(new File(root, ".git"), "objects");
-        if (!obj.isDirectory()) 
-            throw new RuntimeException(root+": not a Git repository");
-        PB = new ProcessBuilder(); PB.directory(root);
-        readObjects();
+       try {
+          root = f.isDirectory()? f.getCanonicalFile(): f.getParentFile();
+          PB.directory(root);
+	   } catch (IOException x) {
+	      throw new RuntimeException(x);
+	   }
     }
-    void readObjects() {   
-        String[] BATCH = 
-         {"git", "cat-file", "--batch-check", "--batch-all-objects"};
-        int n = 0, t = 0;
-        for (String s : new String(exec(BATCH)).split("\n")) {
-            String[] a = s.split(" ");
-            String h = a[0].trim();
-            if (a[1].equals("commit")) cMap.add(h);
-            if (a[1].equals("blob")) bMap.add(h);
-            if (a[1].equals("tree")) t++;
-            n++;
-        }
-        System.out.print(n+" objects  "+cMap.size()+" commits  ");
-        System.out.println(t+" trees  "+bMap.size()+" blobs");
-        System.out.println(cMap.size()+bMap.size()+t);
-    }
-    public void printData(String h) {
-        for (byte b : getData(h)) System.out.print((char)b);
-        System.out.println();
-    }
-    public byte[] getData(String h) { //4 digits may suffice
+    public byte[] getObjectData(String h) { //4 digits may suffice
         String[] CATF = {"git", "cat-file", "-p", h};
-        return exec(CATF);
+        int n = exec(CATF); 
+        byte[] ba = new byte[n];
+        System.arraycopy(buf, 0 , ba, 0, n);
+        return ba;
     }
-    public String head() {
-        String[] HEAD = {"git", "rev-parse", "HEAD"};
-        return new String(exec(HEAD), 0, 40);  //skip LF
+    public int getObjectSize(String h) {
+        String[] CATF = {"git", "cat-file", "-s", h};
+        int n = exec(CATF);
+        String s = new String(buf, 0, n-1); //skip LF
+        return Integer.parseInt(s);
     }
-    public void execute(String... a) {
-        System.out.println(new String(exec(a)));
+    public String getObjectType(String h) {
+        String[] CATF = {"git", "cat-file", "-t", h};
+        int n = exec(CATF);
+        return new String(buf, 0, n-1); //skip LF
     }
-    byte[] exec(String... a) {
-        byte[] out, err;
+    public void printObjectData(String h) {
+        int n = getObjectSize(h);
+        if (n > LARGE) 
+            System.out.println("Data is large: "+n);
+        else {
+            for (byte b : getObjectData(h)) 
+                System.out.print((char)b);
+            System.out.println();
+        }
+    }
+    public String getFullSHA(String h) {
+        //if (h.length() == 40) return h; calculate
+        String t = getObjectType(h);
+        byte[] b = getObjectData(h);
+        return calculateSHA(t, b);
+    }
+    public String[] execute(String... a) { 
+    //invoke  exec() and split the result into lines
+        int n = exec(a);
+        String s = new String(buf, 0, n);
+        return s.length() == 0 ? new String[0] : s.split("\n");
+    }
+    void waitFor(Process p, int n, int d) { //nd msec
+        InputStream in  = p.getInputStream();
+        InputStream err = p.getErrorStream();
         try { 
+            while (in.available()==0 && err.available()==0 && n>0) {
+                Thread.sleep(d); n--;  //wait for p, at most d msec
+            }
+            //System.out.println("in.available()="+in.available()+" "+n);
+        } catch (IOException x) {
+            throw new RuntimeException(x);
+        } catch (InterruptedException x) {
+            //should not happen
+        }
+    }
+    int exec(String... a) { //fill buf & return number of bytes read
+        try { 
+            //Process p = Runtime.getRuntime().exec(a);
             PB.command(a); Process p = PB.start();
-            p.waitFor();
+            waitFor(p, 100, 10);  //wait at most 1000 msec
             
-            out = toArray(p.getInputStream());
-            err = toArray(p.getErrorStream());         
-        } catch (Exception x) {
+            //This requires Java 8 and is too coarse -- polls each second
+            //p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS);
+                    
+            InputStream err = p.getErrorStream();
+            if (err.available() > 0) {
+                int n = err.read(buf, 0, buf.length);
+                String msg = new String(buf, 0, n);
+                throw new RuntimeException(msg);
+            }
+            InputStream in = p.getInputStream();
+            int n = in.read(buf, 0, buf.length);
+            p.destroy(); return n;
+        } catch (IOException x) {
             throw new RuntimeException(x);
         }
-        if (out.length > 0) return out; 
-        throw new RuntimeException(new String(err));
     }
-    public String toSHA(byte[] ba) {
-        return toHex(MD.digest(ba));  //java.security.MessageDigest
+    int exec(byte[] ba, String... a) {
+        int n = Math.min(exec(a), ba.length);
+        System.arraycopy(buf, 0 , ba, 0, n);
+        return n;
     }
-    public void toSHA(File f) throws IOException {
+    public void toSHA2(File f) throws IOException {
         System.out.println(f.getName());
         InputStream in = new FileInputStream(f);
         String h = toSHA(toArray(in)); //IOException
         System.out.println(h);
         String[] SHA = {"shasum", f.toString()};
-        String s = new String(exec(SHA), 0, 40);
+        byte[] ba = new byte[40];
+        exec(ba, SHA); //skip LF
+        String s = new String(ba);
         System.out.println(s+"  "+s.equals(h));
     }
-    public void saveBlob(String h, String name) throws IOException {
-        byte[] b = getData(h);
-        String t = "blob "+b.length;
-        byte[] a = t.getBytes();
-        byte[] ab = new byte[a.length+1+b.length];
-        System.arraycopy(a, 0 ,ab, 0, a.length);  //char 0
-        System.arraycopy(b, 0 ,ab, a.length+1, b.length);
-        String s = toSHA(ab);
-        System.out.println(h+"  "+t+"="+b.length);
+    public void saveBlob(String h, String name) {
+        byte[] b = getObjectData(h);
+        String s = calculateSHA("blob", b);
+        System.out.println(h+"  blob "+b.length);
         System.out.println(s+"  "+s.startsWith(h));
         saveToFile(b, new File(name));
     }
+    public String toString() { return root.getName(); }
     
-    static String trim(String h) { 
-        return (h!=null && h.length()>M? h.substring(0, M) : h); 
+    static String toHex(byte b) {
+        if (b > 15) return Integer.toHexString(b);
+        if (b < 0) return Integer.toHexString(b+256);
+        return "0"+Integer.toHexString(b); //single digit
     }
-    static void saveToFile(byte[] b, File f) throws IOException {
-        OutputStream out = new FileOutputStream(f);
-        out.write(b); out.close();
+    static String toHex(byte[] buf) {
+        String hash = "";
+        for (int i=0; i<buf.length; i++) hash += toHex(buf[i]);
+        return hash;
+    }
+    public static String toSHA(byte[] ba) {
+        return toHex(MD.digest(ba));  //java.security.MessageDigest
+    }
+    public static String toSHA(File f) throws IOException {
+        return toSHA(toArray(new FileInputStream(f))); 
+    }
+    public static String calculateSHA(String type, byte[] b) {
+           byte[] a = (type+" "+b.length).getBytes();
+           byte[] ab = new byte[a.length+1+b.length];
+           System.arraycopy(a, 0, ab, 0, a.length);  //char 0
+           System.arraycopy(b, 0, ab, a.length+1, b.length);
+           return toSHA(ab);
+    }
+    public static void saveToFile(byte[] b, File f) {
+        try (OutputStream out = new FileOutputStream(f)) {
+            out.write(b); out.close();
+        } catch (IOException x) {
+            throw new RuntimeException(x);
+        }
     }
     public static byte[] toArray(InputStream in) throws IOException {
         int n = in.available();
@@ -113,18 +166,10 @@ class Exec {
         if (n == buf.length) return buf;
         else return Arrays.copyOf(buf, n);
     }
-    static String toHex(byte b) {
-        if (b > 15) return Integer.toHexString(b);
-        if (b < 0) return Integer.toHexString(b+256);
-        return "0"+Integer.toHexString(b); //single digit
-    }
-    public static String toHex(byte[] buf) {
-        String hash = "";
-        for (int i=0; i<buf.length; i++) hash += toHex(buf[i]);
-        return hash;
-    }
     public static void main(String[] args) throws IOException {
         Exec G = new Exec();
-        //G.execute("dir"); //sample shell command
+        G.execute("dir"); //sample shell command
+        G.execute("git", "branch", "-v"); //local branches
+        G.saveBlob("64fc", "test.jar"); //sss.jar V2.10
     }
 }
