@@ -10,13 +10,15 @@ G.getAllBranches();
 //find the HEAD branch in G
 h = G.currentHEAD();
 //display All Commits in h
-h.getAllCommits();
+h.printAllCommits();
 //find the last commit in h
 c = h.getLatestCommit();
 //load the tree of c
 t = c.getTree();
 //get its first child
 b = t.getChildAt(0);
+//make a TreeNode
+n = c.toTreeNode();
 //display the tree
-Menu.toTree(t);
+Menu.toTree(n);
 
