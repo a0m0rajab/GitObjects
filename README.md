@@ -2,7 +2,14 @@
 
 The aim of this project is to access the objects in any Git repository from within Java.
 
-There are only two source files -- explained in [the API](https://maeyler.github.io/GitObjects/)
+The simplicity of Git design is strongly contrasted by the rich set of commands in the user interface. 
+
+Every Git object has only three pieces of information:
+* Type: Commit, Tree, or Blob (=binary file) -- as explained below.
+* SHA: serves as a content-dependent name
+* Size: in bytes (uncompressed binary)
+
+In order to access these objects from Java, there are three source files in this repository -- see [the API](https://maeyler.github.io/GitObjects/)
 
 Start with `$ java -jar sss.jar` and click on `Menu.chooser()` and then on `Chooser.runTeacher()`
 
@@ -10,40 +17,36 @@ Select GitInspector.txt in the File dialog and then select Git.class -- Here is 
 
 We need a new Git instance in the current directory: `G = new Git()`
 
-First, display All Branches in G:  `G.getAllBranches()`
+First, display all Branches in G:  `G.getAllBranches()`
 
 ![tree branches](images/branches.JPG)
 
-There are 13 branches in our repo. Find the HEAD branch in G:  `h = G.currentHEAD()`
+There were 5 branches in our repo when this snapshot was taken. 
 
-Display All Commits in this branch:  `h.printAllCommits()`
+Find the HEAD of the current branch in G:  `h = G.currentHEAD()`
 
-HEAD branch has 21 commits in this repo
+Display all Commits in this branch:  `h.printAllCommits()`  This branch has 21 commits toward to root.
 
 ![all commits](images/all%20commits.PNG)
 
-Find the last commit in h:  `c = h.getLatestCommit()`  This is a Git object of the first kind.
+Find the latest commit in h:  `c = h.getLatestCommit()`  This is a Git object of the first kind.
 
-This object has all the information about the commit: 
+This object has all the information about the Commit: 
 * what: SHA and pointer to the Tree (contents)
 * when: time in msec and as date string
-* after: the parents (0, 1, or 2 SHA links)
+* name: human-readable name (need not be unique)
+* parent(s): 0, 1, or 2 SHA links
 * who: the author (name and e-mail)
-
-Every Git object has also 5 pieces of information:
-* Type: commit, tree, or blob (=binary file)
-* SHA serves as a content-dependent name
-* Human-readable name, need not be unique
-* Size in bytes (uncompressed binary)
-* Parent object -- either commit or tree
 
 ![latest commit](images/latest%20commit.PNG)
 
-Load the tree of this Commit:  `t = c.getTree()`  This is a Git object of the second kind: the root directory.
+Load the tree of this Commit:  `t = c.getTree()`  This is a Git object of the second kind: Tree, a directory.
 
-Get the first child in the tree:  `b = t.getChildAt(0)`  This is a Git object of the third kind: a file.
+Get the first child in the tree:  `b = t.getChildAt(0)`  This is a Git object of the third kind: Blob, a file.
 
-Finally, make and display the tree:  `n = c.toTreeNode(); Menu.toTree(n);`
+Tree and Blob objects carry the actual data. Name and parent of these objects were included in earlier versions, but they are meaningful only within a certain Commit, thus they are not part of the object data. Name is stored in the parent Tree, parent is not stored -- there is no backward reference in Git data.
+
+Finally, make and display the tree in two steps:  `n = c.toTreeNode(); Menu.toTree(n);`
 
 ![display tree](images/display%20tree.PNG)
 
@@ -54,7 +57,7 @@ Finally, make and display the tree:  `n = c.toTreeNode(); Menu.toTree(n);`
 
 It all started with [an excellent article](https://hackernoon.com/https-medium-com-zspajich-understanding-git-data-model-95eb16cc99f5) on .git/objects -- I had to try it myself!
 
-It worked fine, but the story is incomplete: Most Git objects are packed!
+It worked fine, but the story is not so simple: Most Git objects are packed!
 
 
 #### V1. GitInspector becomes Git.java
@@ -90,6 +93,14 @@ Git objects are immutable -- Rather than calculating each object from scratch, w
 
 #### V4. TreeNode is separated from Git objects
 
-TreeNode is a useful interface recognized by JTree, simplifing to display the contents of a given Commit.
+TreeNode is a useful interface recognized by JTree, simplifying to display the contents of a given Commit.
 
 In earlier versions, Git.Entry implements TreeNode. In V4, the two classes are separated.
+
+
+### References
+
+* Chap 10 in the Git Book: [Git Internals](https://git-scm.com/book/en/v2/Git-Internals-Plumbing-and-Porcelain)
+* [Understanding Git  —  Data Model](https://hackernoon.com/https-medium-com-zspajich-understanding-git-data-model-95eb16cc99f5)
+* [The Git Parable](http://tom.preston-werner.com/2009/05/19/the-git-parable.html) and [related images](https://practical-neuroimaging.github.io/_downloads/git_parable_johan_herland.pdf)
+
