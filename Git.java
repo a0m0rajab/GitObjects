@@ -1,6 +1,5 @@
 import java.io.*;
 import java.util.*;
-import javax.swing.tree.TreeNode;
 import java.text.SimpleDateFormat;
 
 /**
@@ -209,12 +208,14 @@ public class Git {
        public Commit getLatestCommit() { return last; }
        /** Returns an array of Commits in this Branch -- backwards */
        public Commit[] printAllCommits() {
-          List<Commit> L = new ArrayList<>();
-          Commit c = getLatestCommit();
-          while (true) {
-             L.add(c); System.out.println(c);
-             if (c.hPar1 == null) break;
-             c = (Commit)c.getParent1();
+          SortedSet<Commit> L = new TreeSet<>(); //all Commits
+          SortedSet<Commit> R = new TreeSet<>(); //remaining Commits
+          R.add(getLatestCommit());
+          while (!R.isEmpty()) {
+             Commit c = R.first(); //latest Commit remaining
+             R.remove(c); L.add(c); System.out.println(c);
+             if (c.hPar1 != null) R.add(c.getParent1());
+             if (c.hPar2 != null) R.add(c.getParent2());
           }
           return L.toArray(new Commit[0]);
        }
@@ -245,7 +246,7 @@ public class Git {
      * after: the parents (0, 1, or 2 SHA links) <br>
      * who: the author (name and e-mail)
      */
-    public class Commit extends Entry {
+    public class Commit extends Entry implements Comparable<Commit> {
        String hTree; //Tree data; 
        long time; String date;
        String name, hPar1, hPar2, author;
@@ -284,6 +285,12 @@ public class Git {
            int k = a.length == 0? 0 : new String(a).split("\n").length; 
            System.out.println("tree "+trim(hTree)+"  "+k+" items"); 
            System.out.println(LINE+LINE);
+       }
+       /** Commits will be ordered in reverse time -- latest first */
+       public int compareTo(Commit c) {
+           if (time < c.time) return 1;
+           if (time > c.time) return -1;
+           return hash.compareTo(c.hash);
        }
        /** returns SHA and name */
        public String toString() { return trim(hash)+" -- "+name; }
