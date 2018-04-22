@@ -4,12 +4,12 @@ The aim of this project is to access the objects in any Git repository from with
 
 The simplicity of Git design is strongly contrasted by the rich set of commands in the user interface. 
 
-Every Git object has only three pieces of information:
+Every Git object has three pieces of information in common:
 * Type: Commit, Tree, or Blob (=binary file) -- as explained below.
 * SHA: serves as a content-dependent name
 * Size: in bytes (uncompressed binary)
 
-In order to access these objects from Java, there are three source files in this repository -- see [the API](https://maeyler.github.io/GitObjects/)
+On top this basic information, Git objects carry other data. In order to access these objects from Java, there are three source files in this repository -- see [the API](https://maeyler.github.io/GitObjects/)
 
 Start with `$ java -jar sss.jar` and click on `Menu.chooser()` and then on `Chooser.runTeacher()`
 
@@ -57,7 +57,7 @@ Finally, make and display the tree in two steps:  `n = c.toTreeNode(); Menu.toTr
 
 It all started with [an excellent article](https://hackernoon.com/https-medium-com-zspajich-understanding-git-data-model-95eb16cc99f5) on .git/objects -- I had to try it myself!
 
-It worked fine, but the story is not so simple: Most Git objects are packed!
+Finding the objects and deflating the files was simple work. It worked fine in half a day, but the story is not so simple: Most Git objects are packed!
 
 
 #### V1. GitInspector becomes Git.java
@@ -97,6 +97,9 @@ TreeNode is a useful interface recognized by JTree, simplifying to display the c
 
 In earlier versions, Git.Entry implements TreeNode. In V4, the two classes are separated.
 
+#### V5. Use java objects instead of SHA
+
+Converting Git objects to Java objects requires a recursive, top-down approach. But it is slow: In order to read the last Commit, you have to read the parents all the way to the initial commit. A hybrid approach was used: Initially SHA links are stored in each object, then the actual objects are made only when needed. (lazy evaluation)
 
 ### References
 
