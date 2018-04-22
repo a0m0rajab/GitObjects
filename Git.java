@@ -1,6 +1,5 @@
 import java.io.*;
 import java.util.*;
-import javax.swing.tree.TreeNode;
 import java.text.SimpleDateFormat;
 
 /**
@@ -91,7 +90,7 @@ public class Git {
         } else if (type.equals(BLOB)) {
             nb++; e = new Blob(h, size);
         } 
-        /*if (e != null)*/ OBJ.put(h, e);
+        if (e != null) OBJ.put(h, e);
         return e;
     }
     Commit getCommit(String h) {
@@ -103,10 +102,10 @@ public class Git {
         if (e != null) return e;
         return newObject(h, typ);
     }
-    /** Returns the Git object with given SHA
-     *
-     *  Input h is converted to a full (40-digit) SHA
-     *  The object is returned from the cache if found
+    /** Returns the Git object with given SHA <p>
+     *  <p>
+     *  Input h is converted to a full (40-digit) SHA <br>
+     *  The object is returned from the cache if found <br>
      *  If not, a new object with known type and size
      */
     public Entry getObject(String h) {
@@ -117,19 +116,19 @@ public class Git {
         {"git", "cat-file", "--batch-check", "--batch-all-objects"};
         nc = 0; nt = 0; nb = 0; OBJ.clear();
         String[] out = X.execute(BATCH); int n = 0;
-        System.out.println(out.length+" objects reported");
+        System.out.println(out.length+" objects -- Reading takes some time");
         for (String s : out) try {
             String[] a = s.split(" ");
             String hash = a[0]; String type = a[1]; 
             int size = Integer.parseInt(a[2]);
             newObject(hash, type, size); n++;
-            //if (n < 20) continue;
-            System.out.print("\r"+OBJ.size()); //n = 0;
-	    } catch (RuntimeException x)  {
-	        System.out.printf("%s in%n%s%n", x, s);
+            if (n < 20) continue;
+            System.out.print("\r"+OBJ.size()); n = 0;
+	} catch (RuntimeException x)  {
+	    System.out.printf("%s in%n%s%n", x, s);
         }
-        System.out.println("\r"+OBJ.size()+" objects read");
-        System.out.println(nc+" commits  "+nt+" trees  "+nb+" blobs = "+n);
+        System.out.println("\r"+OBJ.size()+" objects read"); n = nc+nt+nb;
+        System.out.println(nc+" commits + "+nt+" trees + "+nb+" blobs = "+n);
     }
 
     /** Branch has a name and the SHA of the Commit it marks */
@@ -158,8 +157,8 @@ public class Git {
              Commit c = R.first(); //latest Commit remaining
              R.remove(c); if (!L.add(c)) continue;
              System.out.println(c); n++;
-             if (c.par1 != null) R.add(c.par1);
-             if (c.par2 != null) R.add(c.par2);
+             if (c.par1 != null) R.add(c.getParent1());
+             if (c.par2 != null) R.add(c.getParent2());
           }
           System.out.println(L.size()+" commits = "+n);
           return L.toArray(new Commit[0]);
@@ -188,27 +187,28 @@ public class Git {
      * when: time in msec and as date string <br>
      * after: the parents (0, 1, or 2 SHA links) <br>
      * who: the author (name and e-mail)
+     * <p>
+     * SHA links are stored in the constructor, 
+     * then the actual objects are found when needed
      */
     public class Commit extends Entry implements Comparable<Commit> {
        String name, author, date; long time;
-       Tree data; //Tree data of this Commit
-       Commit par1, par2;
-       Commit(String h, int k) { super(COMMIT, h, k); readGitData(); }
-       public String toString() { return trim(hash)+" -- "+name; } 
-       void readGitData() { 
-           if (data != null) return; 
+       Object tree; //store the SHA first, then the Commit when needed
+       Object par1, par2; //0, 1, or 2 parents
+       Commit(String h, int siz) { 
+           super(COMMIT, h, siz);
+
            byte[] ba = X.getObjectData(hash); 
            String[] a = new String(ba).split("\n");
            int p = 0;
            if (a[p].startsWith("tree")) {
-               String ht = a[p].substring(5, 45); 
-               data = (Tree)getObject(ht, TREE);
+               tree = a[p].substring(5, 45);
                p++;
            }
            while (a[p].startsWith("parent")) {
                String hpar = a[p].substring(7, 47);
-               if (par1 == null) par1 = getCommit(hpar);
-               else par2 = getCommit(hpar);
+               if (par1 == null) par1 = hpar;
+               else par2 = hpar;
                p++;
            }
            if (a[p].startsWith("author")) {
@@ -226,12 +226,28 @@ public class Git {
            while (a[p].length() > 0) p++;
            name = a[p+1]; //after an empty line
        } 
+       public String toString() { return trim(hash)+" -- "+name; } 
+       /** finds the actual objects for the fields: tree, par1, par2 */
+       public void readCommitData() {
+           if  (tree instanceof Tree) return; //already found
+           else tree = getObject((String)tree, TREE);
+           if  (par1 instanceof String) 
+                par1 = getCommit((String)par1);
+           if  (par2 instanceof String) 
+                par2 = getCommit((String)par2);
+       }
        /** returns the actual data (folder structure) in this Commit */
-       public Tree getTree() { return data;}
+       public Tree getTree() {
+           readCommitData(); return (Tree)tree;  
+       }
        /** returns the previous Commit */
-       public Commit getParent1() { return par1;  }
+       public Commit getParent1() {
+           readCommitData(); return (Commit)par1;  
+       }
        /** a merge Commit has two parents */
-       public Commit getParent2() { return par2; }
+       public Commit getParent2() {
+           readCommitData(); return (Commit)par2;  
+       }
        /** returns the author */
        public String getAuthor() { return author; }
        /** returns the time in msec */
@@ -246,9 +262,9 @@ public class Git {
        public void print() {
            System.out.println("commit "+this);
            System.out.println(date+" "+author);
-           if (par1 != null) System.out.println("parent "+par1);
-           if (par2 != null) System.out.println("parent "+par2);
-           data.readGitData(); System.out.println("tree   "+data); 
+           if (par1 != null) System.out.println("parent "+getParent1());
+           if (par2 != null) System.out.println("parent "+getParent2());
+           getTree().readTreeData(); System.out.println("tree   "+tree); 
            System.out.println(LINE+LINE);
        }
        /** Commits will be ordered in reverse time -- latest first */
@@ -279,7 +295,8 @@ public class Git {
            String s = (data == null? "?" : ""+data.length);
            return trim(hash)+":  ["+s+"]  "; 
        } 
-       void readGitData() { 
+       /** reads the data (folder structure) of this Tree */
+       public void readTreeData() { 
            if (data != null) return; 
            String[] LSTREE = {"git", "ls-tree", "-l", hash};
            String[] sa = X.execute(LSTREE); 
@@ -307,13 +324,13 @@ public class Git {
        public int getChildCount() { return data.length; }
        /** prints this Entry into std out */
        public void print() {
-           readGitData(); System.out.println(this);
+           readTreeData(); System.out.println(this);
            for (int i=0; i<name.length; i++)
-               System.out.println(data[i]+name[i]);
+               System.out.printf("%2s.  %s\n", i, data[i]+name[i]);
        }
        /**  */
        public void saveTo(File dir, String nam) {
-           readGitData(); System.out.println(this+nam);
+           readTreeData(); System.out.println(this+nam);
            File f = null;
            if (dir != null) {
               f = new File(dir, nam);
@@ -327,7 +344,7 @@ public class Git {
        }
        /** makes a TreeNode -- not public */
        Node toTreeNode(String nam, Node par) {
-           readGitData();
+           readTreeData();
            List<Node> L = new ArrayList<>();
            Node t = new Node(this, this+nam, par);
            for (int i=0; i<data.length; i++) {
@@ -382,6 +399,5 @@ public class Git {
         Branch b = G.currentHEAD();
         b.getLatestCommit().print();
         b.printAllCommits();
-        //.getTree().verify();
     }
 }
