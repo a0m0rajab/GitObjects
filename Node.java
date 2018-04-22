@@ -3,7 +3,6 @@ import java.util.*;
 import javax.swing.tree.TreeNode;
 
 /**
- *
  * The Node class models a Git object as a TreeNode <p>
  * <p>
  * On top of SHA, type, and size defined in Git.Entry,
@@ -51,11 +50,7 @@ public class Node implements TreeNode {
        /** the Commit that contains this Node */
        public Git.Entry getRoot() { 
            Node c = this; 
-           while (c != null) {
-               Node p = c.par;
-               if (p == null) break;
-               c = p;
-           }
+           while (c.par != null) c = c.par;
            return c.getObject();
        }
 }
