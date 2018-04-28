@@ -50,6 +50,7 @@ Finally, make and display the tree in two steps:  `n = c.toTreeNode(); Menu.toTr
 
 ![display tree](images/display%20tree.PNG)
 
+As a test case, you may look at [a simple CRM example](cust/customer.md).
 
 ### Version History
 
@@ -67,7 +68,7 @@ Rather than trying to unpack objects, Git should do the work -- use `java.lang.P
 **Usage:** Compile and run Git.java at the root of any Git repo
 
 The output of the program on *this repo*, when it had only three commits:
-````
+```sh
 $ java Git
 88f4044ecf7f20aba666136072bd4f0132c28f0d
 21/03/2018 17:18  GitObjects.java
@@ -79,7 +80,7 @@ tree c9d0f5  2 items ***  parent 7bb2af
 21/03/2018 14:01  Initial commit
 tree bcadff  1 items ***
 ============================================================
-````
+```
 
 #### V2. verifiy() and saveTo(File)
 
