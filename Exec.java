@@ -41,6 +41,10 @@ import java.security.MessageDigest;
 	   } catch (IOException x) {
 	      throw new RuntimeException(x);
 	   }
+       String[] VERSION = {"git", "--version"};
+       String[] a = execute(VERSION);
+       if (a.length != 1 || !a[0].startsWith("git version"))
+          throw new RuntimeException("Command git not found");
     }
     /** returns the bytes of Object h -- 4 digits may suffice */
     public byte[] getObjectData(String h) { //
@@ -125,16 +129,14 @@ import java.security.MessageDigest;
             }
             InputStream in = p.getInputStream();
             int n = in.read(buf, 0, buf.length);
-            waitFor(p, 5, 10);
+            waitFor(p, 10, 10);
             while (in.available() > 0) {
                 n += in.read(buf, n, buf.length-n);
-                waitFor(p, 5, 10);
+                waitFor(p, 10, 10);
             }
-            return n;
+            p.destroy(); return n;
         } catch (IOException x) {
             throw new RuntimeException(x);
-        } finally {
-            p.destroy(); 
         }
     }
     int exec(byte[] ba, String... a) {

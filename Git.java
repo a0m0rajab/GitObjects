@@ -111,7 +111,7 @@ public class Git {
     public Entry getObject(String h) {
         return getObject(h, X.getObjectType(h));
     }
-    void readObjects() {
+    public void readObjects() {
         String[] BATCH = 
         {"git", "cat-file", "--batch-check", "--batch-all-objects"};
         nc = 0; nt = 0; nb = 0; OBJ.clear();
@@ -168,12 +168,13 @@ public class Git {
     /** 
      * Entry is a model of Git objects <p>
      * every object has type, SHA, and size in Git <br>
+     * (type is not stored -- each class knows its type)
      */
     public abstract class Entry {
-       final String type, hash; int size;
+       final String hash; int size;
        //empty objects may have length 1 --> store it as 0
-       Entry(String t, String h, int k) { 
-           type = t; hash = h; size = (k==1? 0 : k);
+       Entry(String h, int k) { 
+           hash = h; size = (k==1? 0 : k);
        }
        /** verifies this Entry by saving to null folder */
        public void verify() { saveTo(null, ROOT); }
@@ -196,7 +197,7 @@ public class Git {
        Object tree; //store the SHA first, then the Commit when needed
        Object par1, par2; //0, 1, or 2 parents
        Commit(String h, int siz) { 
-           super(COMMIT, h, siz);
+           super(h, siz);
 
            byte[] ba = X.getObjectData(hash); 
            String[] a = new String(ba).split("\n");
@@ -290,7 +291,7 @@ public class Git {
      */
     public class Tree extends Entry {
        Entry[] data; String[] name;
-       Tree(String h, int k) { super(TREE, h, k); }
+       Tree(String h, int k) { super(h, k); }
        public String toString() {
            String s = (data == null? "?" : ""+data.length);
            return trim(hash)+":  ["+s+"]  "; 
@@ -317,11 +318,11 @@ public class Git {
             name = N.toArray(new String[0]);
        } 
        /** get the i<sup>th</sup> Name */
-       public String getNameAt(int i) { return name[i]; }
+       public String getNameAt(int i) { readTreeData(); return name[i]; }
        /** get the i<sup>th</sup> Entry */
-       public Entry getChildAt(int i) { return data[i]; }
+       public Entry getChildAt(int i) { readTreeData(); return data[i]; }
        /** number of Entries under this Tree */
-       public int getChildCount() { return data.length; }
+       public int getChildCount() { readTreeData(); return data.length; }
        /** prints this Entry into std out */
        public void print() {
            readTreeData(); System.out.println(this);
@@ -367,7 +368,7 @@ public class Git {
      */
     public class Blob extends Entry {
        byte[] data;
-       Blob(String h, int k) { super(BLOB, h, k); }
+       Blob(String h, int k) { super(h, k); }
        public String toString() { return trim(hash)+" ("+size+") "; } 
        /** prints this Entry into std out */
        public void print() { System.out.println(this); }

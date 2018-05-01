@@ -32,11 +32,11 @@ Display all Commits in this branch:  `h.printAllCommits()`  This branch has 21 c
 Find the latest commit in h:  `c = h.getLatestCommit()`  This is a Git object of the first kind.
 
 This object has all the information about the Commit: 
-* what: SHA and pointer to the Tree (contents)
-* when: time in msec and as date string
-* name: human-readable name (need not be unique)
-* parent(s): 0, 1, or 2 SHA links
+* what: human-readable name (need not be unique)
 * who: the author (name and e-mail)
+* when: time in msec and as date string
+* contents: Tree reference (root directory)
+* parent(s): 0, 1, or 2 Commit references
 
 ![latest commit](images/latest%20commit.PNG)
 
